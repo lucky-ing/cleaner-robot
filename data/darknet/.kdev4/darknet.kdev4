@@ -1,0 +1,36 @@
+[Buildset]
+BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x01\x00\x00\x00\x0e\x00d\x00a\x00r\x00k\x00n\x00e\x00t)
+
+[CustomDefinesAndIncludes][ProjectPath0]
+Defines=\x00\x00\x00\x00
+Includes=\x00\x00\x00\x01\x00\x00\x00r\x00/\x00h\x00o\x00m\x00e\x00/\x00l\x00u\x00c\x00k\x00y\x00/\x00P\x00y\x00c\x00h\x00a\x00r\x00m\x00P\x00r\x00o\x00j\x00e\x00c\x00t\x00s\x00/\x00l\x00o\x00a\x00d\x00d\x00l\x00l\x00/\x00d\x00a\x00t\x00a\x00/\x00d\x00a\x00r\x00k\x00n\x00e\x00t\x00/\x00i\x00n\x00c\x00l\x00u\x00d\x00e\x00/
+Path=.
+
+[Defines And Includes][Compiler]
+Name=GCC
+Path=gcc
+Type=GCC
+
+[Launch]
+Launch Configurations=Launch Configuration 0
+
+[Launch][Launch Configuration 0]
+Configured Launch Modes=execute
+Configured Launchers=nativeAppLauncher
+Name=New Compiled Binary Launcher
+Type=Native Application
+
+[Launch][Launch Configuration 0][Data]
+Arguments=cfg/tiny-yolo-voc.cfg tiny-yolo-voc.weights /home/lucky/PycharmProjects/loaddll/data/darknet/data/dog.jpg
+Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
+Dependency Action=Nothing
+EnvironmentGroup=
+Executable=file:///home/lucky/PycharmProjects/loaddll/data/darknet/darknet
+External Terminal=konsole --noclose --workdir %workdir -e %exe
+Project Target=
+Use External Terminal=false
+Working Directory=
+isExecutable=true
+
+[Project]
+VersionControlSupport=kdevgit

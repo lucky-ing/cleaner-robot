@@ -1,0 +1,6 @@
+classes= 1
+train  = /home/wangjch/Downloads/darknet/Yolodata/train.txt
+valid  = /home/wangjch/Downloads/darknet/Yolodata/valid.txt
+names  = /home/wangjch/Downloads/darknet/data/slippers.names
+backup = backup/
+
