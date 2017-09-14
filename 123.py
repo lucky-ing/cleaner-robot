@@ -10,7 +10,7 @@ from sensor_msgs.msg import LaserScan, Imu
 #from kobuki_msgs.msg import BumperEvent, RobotStateEvent
 #from visualization_msgs.msg import Marker
 #from map_msgs.msg import *
-from geometry_msgs.msg import PointStamped,Point
+from geometry_msgs.msg import PointStamped,Point,PoseStamped
 from std_msgs.msg import Header
 from tf.transformations import quaternion_from_euler
 from tf.msg import tfMessage
@@ -29,6 +29,7 @@ import math
 import time
 #import os
 import cv2
+import copy
 
 error = int(1)
 ok = int(0)
@@ -167,16 +168,12 @@ class MapRobot(object):
 
 
 
-
-
-
-
         self.VIO = CarState()
         self.VIO.x = 0
         self.askok = 0
         self.search=0
         self.stepnum=1
-        self.sendok = 0
+        self.sendok = 1
         self.direction=0
 
 
@@ -226,10 +223,21 @@ class MapRobot(object):
         self.FrameKey = threading.Event()
         self.FrameKey.clear()
         self.frame = 0
-        self.c=threading.Thread(target=self.detect,args=())
-        self.i=threading.Thread(target=self.img_read,args=())
-        self.c.start()
-        self.i.start()
+        self.poses = []
+        self.fixframe = rospy.get_param('~fixed_frame', 'map')
+
+
+
+
+
+        #self.c=threading.Thread(target=self.detect,args=())
+        #self.i=threading.Thread(target=self.img_read,args=())
+        #self.s = threading.Thread(target=self.pointpublish_task, args=())
+        #self.q = threading.Thread(target=self.maptask, args=())
+        #self.c.start()
+        #self.i.start()
+        #self.q.start()
+        #self.s.start()
 
         self.mapdata = np.zeros((self.mapweight, self.maphight))
         self.road = np.zeros((self.mapweight, self.maphight))
@@ -279,7 +287,7 @@ class MapRobot(object):
 
         self.cc = open('display1.txt')
         #self.path = rospy.Subscriber('/imu0', Imu, self.imucallback)
-
+        self.pathpublisher = rospy.Publisher('nav_msgs/Path', Path, queue_size=1)
         self.sst = rospy.Publisher('map', OccupancyGrid, queue_size=1)
         self.tfmm = rospy.Publisher('tf', tfMessage, queue_size=1)
         self.sstm = rospy.Publisher('map_metadata', MapMetaData, queue_size=1)
@@ -305,25 +313,57 @@ class MapRobot(object):
                     i=0
                     self.mappublish()
                     self.transform()
+                    self.pathplublish()
                     self.ShowProcess()
-               # self.pointpublish()
                 time.sleep(0.1)
 
 
     def pointpublish_task(self):
         #self.imustamped=rospy.Publisher('/imu1',Imu,queue_size=1)
+
+
         self.pointstamped = rospy.Publisher('/position', PointStamped, queue_size=1)
         self.pointi = 0
         while True:
-            time.sleep(0.01)
+            time.sleep(0.1)
             self.pointpublish()
     def imupublish(self):
         #self.imu0+=1
         self.imu=Imu()
         self.imu.orientation=0
 
+    def pathplublish(self):
 
+        self.paths = Path()
+        header = Header(stamp=rospy.Time.now())
+        header.seq = self.pointi
+        header.frame_id = self.fixframe
+
+        self.paths.header = header
+
+        pose_temp = PoseStamped()
+        header0 = Header(stamp=rospy.Time.now())
+        header0.seq = self.pointi
+        header0.frame_id = self.fixframe
+
+        pose = Pose()
+
+        # s_pose.header=header0
+        # s_pose.point.x=self.pointi/20.0
+        pose.position.x = math.cos(self.pointi/100.0)*self.pointi/100.0
+        pose.position.y = math.sin(self.pointi/100.0)*self.pointi/100.0
+        pose.position.z = 0
+        pose.orientation.w = 1
+        pose.orientation.x = 0
+        pose.orientation.y = 0
+        pose_temp.pose = pose
+        pose_temp.header = header0
+        self.poses.append(pose_temp)
+        self.paths.poses = self.poses
+        self.paths.header = header0
+        self.pathpublisher.publish(self.paths)
     def pointpublish(self):
+
         self.pointi+=1
         self.points=PointStamped()
         header=Header(stamp=rospy.Time.now())
@@ -335,6 +375,8 @@ class MapRobot(object):
         point.z=0
         self.points.point=point
         self.pointstamped.publish(self.points)
+
+
 
 
     def OpenSerialCom(self):
@@ -405,7 +447,7 @@ class MapRobot(object):
                             self.search=1
                             continue
                         if num==0 and ord(self.SerialReadContentTemp[i])==0x03:
-                            self.sendok+=1
+                            self.sendok=1
                             continue
                         if num == 1 :
                             if ord(self.SerialReadContentTemp[i])==12:
@@ -992,7 +1034,10 @@ self.tfee.sendTransform((self.robot.x / 20.0, self.robot.y / 20.0, 0),
                 else:
                     cc = 0
                 if cc > 3:
+                    self.sendok=0
                     self.sendmsg('S')
+                    while self.sendok==0:
+                        time.sleep(0.001)
                 T = np.matrix([[math.cos(self.robot.angle*math.pi/180.0),-math.sin(self.robot.angle*math.pi/180.0)],
                                    [math.sin(self.robot.angle*math.pi/180.0),math.cos(self.robot.angle*math.pi/180.0)]])
                 for i in range(-3,4):
@@ -1042,13 +1087,43 @@ self.tfee.sendTransform((self.robot.x / 20.0, self.robot.y / 20.0, 0),
                     print('go : ',x-self.mapweight/2, y-self.maphight/2)
                     self.SendPoint(x-self.mapweight/2, y-self.maphight/2)
                 if len(points)>0:
-                    print()
+                    self.sendok=0
                     self.sendmsg('F')
                     time.sleep(0.1)
                     self.sendmsg(chr(self.direction))
+                    if self.sendok==0:
+                        time.sleep(0.001)
 
 
-
+    def SendSite(self,x,y):
+        while self.sendok==0:
+            time.sleep(0.001)
+        self.sendok=0
+        self.sendmsg('T')
+        time.sleep(0.1)
+        i = int(x)
+        if i < 0:
+            i = abs(i)
+            p = (int(i & 0xff00) >> 8) | 0x80
+        else:
+            p = int(i & 0xff00) >> 8
+        self.sendmsg(chr(p))
+        time.sleep(0.1)
+        p = int(i & 0x00ff)
+        self.sendmsg(chr(p))
+        time.sleep(0.1)
+        i = int(y)
+        if i < 0:
+            i = abs(i)
+            p = (int(i & 0xff00) >> 8) | 0x80
+        else:
+            p = int(i & 0xff00) >> 8
+        self.sendmsg(chr(p))
+        time.sleep(0.1)
+        p = int(i & 0x00ff)
+        self.sendmsg(chr(p))
+        while self.sendok == 0:
+            time.sleep(0.1)
 
     def SendPoint(self,x,y):
         self.sendok=0
