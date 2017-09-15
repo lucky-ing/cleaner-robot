@@ -350,8 +350,8 @@ class MapRobot(object):
 
         # s_pose.header=header0
         # s_pose.point.x=self.pointi/20.0
-        pose.position.x = math.cos(self.pointi/100.0)*self.pointi/100.0
-        pose.position.y = math.sin(self.pointi/100.0)*self.pointi/100.0
+        pose.position.x = self.robot.x / 20.0
+        pose.position.y = self.robot.y / 20.0
         pose.position.z = 0
         pose.orientation.w = 1
         pose.orientation.x = 0
