@@ -5,7 +5,8 @@ import tf
 from nav_msgs.msg import OccupancyGrid, MapMetaData, Path
 #from dwa_local_planner.cfg import DWAPlannerConfig
 #from base_local_planner.cfg import BaseLocalPlannerConfig
-from sensor_msgs.msg import LaserScan, Imu
+from sensor_msgs.msg import LaserScan, Imu,Image
+import sensor_msgs.msg
 #import copy
 #from kobuki_msgs.msg import BumperEvent, RobotStateEvent
 #from visualization_msgs.msg import Marker
@@ -166,7 +167,7 @@ class MapRobot(object):
         self.SerialReadContent = []
         self.serialcom = 0
 
-
+        self.detect_ok=0
 
         self.VIO = CarState()
         self.VIO.x = 0
@@ -210,16 +211,15 @@ class MapRobot(object):
         self.lib = ctypes.CDLL("./data/darknet/libdarknet.so", ctypes.RTLD_GLOBAL)
         self.lib.YOLO_Init.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
         self.lib.yolo_init_test.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-        self.lib.yolo_init_test("./data/darknet/cfg/tiny-yolo-voc.cfg", "./data/darknet/tiny-yolo-voc.weights")
+        self.lib.yolo_init_test("./data/darknet/cfg/tiny-yolo-voc.cfg", "./data/darknet/backup/tiny-yolo-voc_final_0915.weights")
         self.lib.yolo_detect_test.argtypes = [ctypes.c_char_p, ctypes.POINTER(ObsDetInstance)]  # tiny-yolo-voc
         self.lib.yolo_detect_test.restype = ctypes.c_int
         self.obsdetinstance = ObsDetInstance()
         self.obstemp=ObsDetInstance()
-        self.cameraCapture = cv2.VideoCapture(1)
+
         self.ROI_H = 1.0 / 2.0
         self.ROI_W = 3.0 / 4.0
-        self.FrameSize = (
-        int(self.cameraCapture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.cameraCapture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+
         self.FrameKey = threading.Event()
         self.FrameKey.clear()
         self.frame = 0
@@ -230,12 +230,12 @@ class MapRobot(object):
 
 
 
-        #self.c=threading.Thread(target=self.detect,args=())
-        #self.i=threading.Thread(target=self.img_read,args=())
+        self.c=threading.Thread(target=self.detect,args=())
+        self.i=threading.Thread(target=self.img_read,args=())
         #self.s = threading.Thread(target=self.pointpublish_task, args=())
         #self.q = threading.Thread(target=self.maptask, args=())
-        #self.c.start()
-        #self.i.start()
+        self.c.start()
+        self.i.start()
         #self.q.start()
         #self.s.start()
 
@@ -253,6 +253,7 @@ class MapRobot(object):
                 ii += 1
                 if c != 0:
                     i += 1
+                    self.detect_ok=1
                     print(self.obsdetinstance.estimate_distance, self.obsdetinstance.estimate_objwidth)
                     self.obstemp.Thing.obj_id = self.obsdetinstance.Thing.obj_id
                     self.obstemp.Thing.x=self.obsdetinstance.Thing.x
@@ -262,16 +263,23 @@ class MapRobot(object):
                     print(self.obstemp.Thing.obj_id, (self.obstemp.Thing.x, self.obstemp.Thing.y),
                           (self.obstemp.Thing.w, self.obstemp.Thing.h))
                 else:
-                    self.obstemp.Thing.obj_id=0
-                print("d:", float(i) / ii)
+                    self.detect_ok=0
+                #print("d:", float(i) / ii)
 
+
+    
     def img_read(self):
         global frame
+        self.cameraCapture = cv2.VideoCapture(1)
+        self.FrameSize = (
+        int(self.cameraCapture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.cameraCapture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
         while self.lock.isSet():
             self.FrameKey.clear()
             success, self.frame = self.cameraCapture.read()
+            self.frame=cv2.cvtColor(self.frame,cv2.COLOR_RGB2GRAY)
             self.FrameKey.set()
-            frame = cv2.rectangle(self.frame, (int(self.FrameSize[0] * (1.0 - self.ROI_W) / 2), int(self.FrameSize[1])),
+            frame=cv2.cvtColor(self.frame.copy(),cv2.COLOR_GRAY2RGB)
+            frame = cv2.rectangle(frame, (int(self.FrameSize[0] * (1.0 - self.ROI_W) / 2), int(self.FrameSize[1])),
                                   (int(self.FrameSize[0] * (1.0 + self.ROI_W) / 2), int(self.FrameSize[1] * (1.0 - self.ROI_H))), (0, 255, 0), 2)
             if self.obstemp.Thing.obj_id!=0:
                 frame = cv2.rectangle(frame,
@@ -283,8 +291,46 @@ class MapRobot(object):
                 break
         self.cameraCapture.release()
 
-    def maptask(self):
+        '''def img_get(self, img):
+        img_temp = img.data  # .data
+        self.FrameKey.clear()
+        img_temp1 = np.matrix(list(img_temp))
+        img_temp1.dtype = 'uint8'
+        frame0 = img_temp1.reshape((480, 752))
+        #frame = copy.copy(frame0)
+        frame0 = cv2.cvtColor(frame0, cv2.COLOR_GRAY2BGR)
+        #frame_mat = cv2.getRotationMatrix2D((376, 240), -6, 1)
+        #self.frame = cv2.warpAffine(frame, frame_mat, (752, 480))
+        self.frame=copy.copy(frame0)
+        self.FrameKey.set()
+        frame = copy.copy(self.frame)
+        frame = cv2.rectangle(frame, (int(self.FrameSize[0] * (1.0 - self.ROI_W) / 2), int(self.FrameSize[1])),
+                              (int(self.FrameSize[0] * (1.0 + self.ROI_W) / 2),
+                               int(self.FrameSize[1] * (1.0 - self.ROI_H))), (0, 255, 0), 2)
+        if self.detect_ok != 0:
+            frame = cv2.rectangle(frame,
+                                  (self.obstemp.Thing.x, self.obstemp.Thing.y),
+                                  (self.obstemp.Thing.w, self.obstemp.Thing.h), (255, 0, 0), 2)
 
+        cv2.imshow('123', frame)
+        t = cv2.waitKey(10)
+        if t & 0xff == ord(' '):
+            cv2.imwrite('SG' + str(self.imagep) + '.jpg', frame0)
+            self.imagep += 1
+            return
+        else:
+            return
+
+    def img_read(self):
+        self.imagep=0
+        self.FrameSize = (752, 480)
+        global frame
+        self.img_sub = rospy.Subscriber('/cam1/image_raw', sensor_msgs.msg.Image, self.img_get)
+        while True:
+            time.sleep(1)'''
+
+
+    def maptask(self):
         self.cc = open('display1.txt')
         #self.path = rospy.Subscriber('/imu0', Imu, self.imucallback)
         self.pathpublisher = rospy.Publisher('nav_msgs/Path', Path, queue_size=1)
@@ -301,9 +347,6 @@ class MapRobot(object):
         ns = rospy.get_param('~ns', 'skeleton_markers')
         id = rospy.get_param('~id', 0)
         color = rospy.get_param('~color', {'r': 0.0, 'g': 1.0, 'b': 0.0, 'a': 1.0})
-
-
-
 
         i=0
         while self.lock.isSet():
@@ -1208,7 +1251,7 @@ self.tfee.sendTransform((self.robot.x / 20.0, self.robot.y / 20.0, 0),
                 for [[y1, x1, y2, x2]] in line:
                     if abs(x1 - x2) < 3 and abs(y1 - y2) < 3:
                         continue
-                    if abs(x1 - x2) + abs(y1 - y2) < 6:#4
+                    if abs(x1 - x2) + abs(y1 - y2) < 4:#4
                         continue
                     unknowplace.append((x1, y1, x2, y2))
         return unknowplace
@@ -1249,9 +1292,15 @@ self.tfee.sendTransform((self.robot.x / 20.0, self.robot.y / 20.0, 0),
 
         for i in range(1, self.mapweight- 1):
             for j in range(1, self.maphight - 1):
-                if self.road[i,j]>0:
-                    closed[i, j] = 0
+                error=0
                 if self.mapdata[i,j]>SETLINE:
+                    for k in range(-2,3):
+                        for g in range(-2,3):
+                            if self.mapdata[i+k,j+g]<SETLINE:
+                                error=1
+                    if error==0:
+                        closed[i, j] = 0
+                if self.road[i, j] > 0:
                     closed[i, j] = 0
 
         #for i in range(-3,4):

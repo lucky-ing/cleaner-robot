@@ -12,13 +12,13 @@ detector_t YOLO_Init(char *cfgfile, char *weightfile)
 
     detector_t detector=make_detector_t();
 
-
+    
     detector.net = parse_network_cfg(cfgfile);
     if(weightfile){
         load_weights(&detector.net, weightfile);
     }
     detector.net.gpu_index=1;
-    
+
     set_batch_network(&detector.net, 1);
     srand(2222222);
 
@@ -44,13 +44,13 @@ int YOLO_Clear(detector_t* detector)
 bbox_v YOLO_Process(detector_t detector,image im,float thresh)
 {
 
-        float hier_thresh=0.5;
+        float hier_thresh=0.01;
 	float nms=.4;
 	
 
 
 	image sized = letterbox_image(im, detector.net.w, detector.net.h);
-	show_image_normalized(sized,"123");
+	//show_image_normalized(sized,"123");
 	float *X = sized.data;
 	layer l = detector.net.layers[detector.net.n-1];
 	network_predict(detector.net, X);
@@ -74,7 +74,7 @@ bbox_v YOLO_Process(detector_t detector,image im,float thresh)
         for (i = 0; i < (l.w*l.h*l.n); ++i) {
 		int const obj_id = max_index(detector.probs[i], l.classes);
 		float const prob = detector.probs[i][obj_id];
-		if (prob > thresh&&obj_id==6) bbox_count++;
+		if (prob > thresh) bbox_count++;
 	}
 
         bbox_v bboxinfo; 
@@ -86,9 +86,9 @@ bbox_v YOLO_Process(detector_t detector,image im,float thresh)
 		int const obj_id = max_index(detector.probs[i], l.classes);
 		float const prob = detector.probs[i][obj_id];
 		
-		if (prob > thresh&&obj_id==6)
+		if (prob > thresh)
 		{
-			printf("obj_id is %d	thresh is  %f\n",obj_id,prob);
+			printf("obj_id is %d	thresh is  %f	x%f	y%f	w%f	h%f\n",obj_id,prob,b.x,b.y,b.w,b.h);
                         tempptr->x=(unsigned int)((b.x - b.w / 2.)*im.w>0?(b.x - b.w / 2.)*im.w:0);
                         tempptr->y=(unsigned int)((b.y - b.h / 2.)*im.h>0?(b.y - b.h / 2.)*im.h:0);
                         tempptr->w=(unsigned int)(b.w*im.w);
@@ -202,7 +202,7 @@ int ObsDetInstance_Process(ObsDetInstance* aInstance,bbox_v bbox_info)
 				board_line.u=candidate_board_line.u;
 				board_line.linelength=candidate_board_line.linelength;
 				board_line.lineheight=candidate_board_line.lineheight;
-				printf("board line %d	%d	%d	%d",candidate_board_line.u,candidate_board_line.v,candidate_board_line.linelength,candidate_board_line.lineheight);
+				//printf("board line %d	%d	%d	%d",candidate_board_line.u,candidate_board_line.v,candidate_board_line.linelength,candidate_board_line.lineheight);
 				
 			}
 		}
@@ -225,7 +225,7 @@ int ObsDetInstance_Process(ObsDetInstance* aInstance,bbox_v bbox_info)
 	    aInstance->Thing.y=board_line.v;
 	    aInstance->Thing.h=board_line.lineheight;
 	    aInstance->Thing.w=board_line.linelength;
-	    aInstance->Thing.obj_id=6;
+	    aInstance->Thing.obj_id=1;
 	
 	    return 1;
     }else
@@ -246,7 +246,7 @@ int yolo_detect_test(char *input,ObsDetInstance *aInstance)
 		1.1200599349358272e+003f, 4.7556164629827435e+002f, 0.f, 0.f, 1.f };//camera 内参
 	float camera_h = 5.0;//camera height (mm)
 	float theta0 = (float)0.0;
-        float thresh=0.1;
+        float thresh=0.01;
 
         image im = load_image_color(input,0,0);
 

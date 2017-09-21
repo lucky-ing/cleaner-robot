@@ -338,6 +338,7 @@ void correct_region_boxes(box *boxes, int n, int w, int h, int netw, int neth, i
         b.y =  (b.y - (neth - new_h)/2./neth) / ((float)new_h/neth); 
         b.w *= (float)netw/new_w;
         b.h *= (float)neth/new_h;
+	printf("in the net x:%f	y:%f	w:%f	h:%f\n",b.x,b.y,b.w,b.h);
         if(!relative){
             b.x *= w;
             b.w *= w;
